@@ -3,18 +3,15 @@ import { join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { KeyId } from "@earendil-works/pi-tui";
 
-export const DEFAULT_TOGGLE_DASHBOARD_SHORTCUT = "ctrl+shift+t" as const satisfies KeyId;
 export const DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT = "ctrl+shift+f" as const satisfies KeyId;
 
 const CONFIG_FILE_NAME = "pi-autoresearch.json";
 
 export interface AutoresearchShortcuts {
-  toggleDashboard: KeyId | null;
   fullscreenDashboard: KeyId | null;
 }
 
 interface AutoresearchShortcutConfig {
-  toggleDashboard?: unknown;
   fullscreenDashboard?: unknown;
 }
 
@@ -35,10 +32,6 @@ export function resolveAutoresearchShortcuts(
   }
 
   return {
-    toggleDashboard: shortcutFromConfig(
-      config.toggleDashboard,
-      DEFAULT_TOGGLE_DASHBOARD_SHORTCUT
-    ),
     fullscreenDashboard: shortcutFromConfig(
       config.fullscreenDashboard,
       DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT
@@ -69,10 +62,7 @@ function readShortcutConfig(configPath: string): AutoresearchShortcutConfig | nu
 }
 
 function hasValidShortcutValues(shortcuts: Record<string, unknown>): boolean {
-  return (
-    isValidShortcutConfigValue(shortcuts.toggleDashboard) &&
-    isValidShortcutConfigValue(shortcuts.fullscreenDashboard)
-  );
+  return isValidShortcutConfigValue(shortcuts.fullscreenDashboard);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,7 +84,6 @@ function shortcutFromConfig(configured: unknown, fallback: KeyId): KeyId | null 
 
 function defaultAutoresearchShortcuts(): AutoresearchShortcuts {
   return {
-    toggleDashboard: DEFAULT_TOGGLE_DASHBOARD_SHORTCUT,
     fullscreenDashboard: DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT,
   };
 }

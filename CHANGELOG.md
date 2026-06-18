@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [1.6.0] - 2026-06-08
+
+### Changed
+
+- Autoresearch now stores session files under the `.auto/` subfolder by default, with legacy file fallback for existing sessions.
+- The dashboard widget is now always expanded — the full results table renders inline above the editor at all times. Removed the collapsed one-liner mode and the `Ctrl+Shift+T` expand/collapse toggle (and its `shortcuts.toggleDashboard` config key). Fullscreen (`Ctrl+Shift+F`) remains the only dashboard toggle.
+- Migrated Pi package imports and dependencies from the `@mariozechner` npm scope to `@earendil-works`.
+
+## [1.5.0] - 2026-06-04
+
+### Changed
+
+- The `init_experiment`, `run_experiment`, and `log_experiment` tools are now revealed to the agent only while autoresearch mode is active, instead of being callable in every session. Outside autoresearch mode the tools are absent from the LLM's schema and system prompt, so the agent can no longer self-start a research loop — entry is via `/autoresearch` or resuming a session with an existing `autoresearch.jsonl`.
+
 ## [1.4.0] - 2026-05-06
 
 ### Added
