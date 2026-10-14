@@ -45,6 +45,7 @@ import {
   isAutoresearchRunEntry,
   extractAutoresearchSessionName,
   reconstructJsonlState,
+  inferMetricUnit,
 } from "./jsonl.ts";
 import {
   autoresearchSummaryPathsFor,
@@ -2253,12 +2254,7 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       // Register any new secondary metric names
       for (const name of Object.keys(secondaryMetrics)) {
         if (!state.secondaryMetrics.find((m) => m.name === name)) {
-          let unit = "";
-          if (name.endsWith("µs")) unit = "µs";
-          else if (name.endsWith("_ms")) unit = "ms";
-          else if (name.endsWith("_s") || name.endsWith("_sec")) unit = "s";
-          else if (name.endsWith("_kb")) unit = "kb";
-          else if (name.endsWith("_mb")) unit = "mb";
+          const unit = inferMetricUnit(name);
           state.secondaryMetrics.push({ name, unit });
         }
       }
