@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -11,22 +11,74 @@ import {
 } from "../extensions/pi-autoresearch/shortcuts.ts";
 import autoresearchExtension from "../extensions/pi-autoresearch/index.ts";
 
-test("autoresearch shortcuts default to the documented bindings when config is absent", async () => {
+async function withTempAgentDir(fn) {
   const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
   try {
+    return await fn(agentDir);
+  } finally {
+    await rm(agentDir, { recursive: true, force: true });
+  }
+}
+
+test("temporary agent directory remains available until the async callback completes", async () => {
+  let agentDir;
+  const result = await withTempAgentDir(async (dir) => {
+    agentDir = dir;
+    await new Promise((resolve) => setImmediate(resolve));
+    await writeFile(join(dir, "completed"), "done");
+    return "result";
+  });
+
+  assert.equal(result, "result");
+  await assert.rejects(access(agentDir), { code: "ENOENT" });
+});
+
+test("temporary agent directory is removed when the callback throws", async () => {
+  let agentDir;
+  const failure = new Error("callback failed");
+  await assert.rejects(withTempAgentDir((dir) => {
+    agentDir = dir;
+    throw failure;
+  }), (error) => error === failure);
+
+  await assert.rejects(access(agentDir), { code: "ENOENT" });
+});
+
+test("temporary agent directory is removed after async callback rejection", async () => {
+  let agentDir;
+  const failure = new Error("async callback failed");
+  const previousWarn = console.warn;
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  await assert.rejects(withTempAgentDir(async (dir) => {
+    agentDir = dir;
+    console.warn = () => {};
+    try {
+      await writeFile(join(dir, "created"), "before failure");
+      withAgentDir(dir, () => {
+        throw failure;
+      });
+    } finally {
+      console.warn = previousWarn;
+    }
+  }), (error) => error === failure);
+
+  assert.equal(console.warn, previousWarn);
+  assert.equal(process.env.PI_CODING_AGENT_DIR, previousAgentDir);
+  await assert.rejects(access(agentDir), { code: "ENOENT" });
+});
+
+test("autoresearch shortcuts default to the documented bindings when config is absent", async () => {
+  await withTempAgentDir(async (agentDir) => {
     const configPath = autoresearchShortcutsConfigPath(agentDir);
     const shortcuts = resolveAutoresearchShortcuts(configPath);
 
     assert.equal(configPath, join(agentDir, "extensions", "pi-autoresearch.json"));
     assert.equal(shortcuts.fullscreenDashboard, DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT);
-  } finally {
-    await rm(agentDir, { recursive: true, force: true });
-  }
+  });
 });
 
 test("autoresearch shortcuts can be overridden by the config file", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  try {
+  await withTempAgentDir(async (agentDir) => {
     const configPath = autoresearchShortcutsConfigPath(agentDir);
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await writeFile(
@@ -41,14 +93,11 @@ test("autoresearch shortcuts can be overridden by the config file", async () => 
     const shortcuts = resolveAutoresearchShortcuts(configPath);
 
     assert.equal(shortcuts.fullscreenDashboard, "ctrl+shift+u");
-  } finally {
-    await rm(agentDir, { recursive: true, force: true });
-  }
+  });
 });
 
 test("autoresearch shortcuts can be disabled with null in the config file", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  try {
+  await withTempAgentDir(async (agentDir) => {
     const configPath = autoresearchShortcutsConfigPath(agentDir);
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await writeFile(
@@ -63,14 +112,11 @@ test("autoresearch shortcuts can be disabled with null in the config file", asyn
     const shortcuts = resolveAutoresearchShortcuts(configPath);
 
     assert.equal(shortcuts.fullscreenDashboard, null);
-  } finally {
-    await rm(agentDir, { recursive: true, force: true });
-  }
+  });
 });
 
 test("partial shortcut config defaults omitted fields independently", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  try {
+  await withTempAgentDir(async (agentDir) => {
     const configPath = autoresearchShortcutsConfigPath(agentDir);
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await writeFile(
@@ -83,63 +129,61 @@ test("partial shortcut config defaults omitted fields independently", async () =
     const shortcuts = resolveAutoresearchShortcuts(configPath);
 
     assert.equal(shortcuts.fullscreenDashboard, DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT);
-  } finally {
-    await rm(agentDir, { recursive: true, force: true });
-  }
+  });
 });
 
 test("malformed shortcut config warns and falls back to defaults", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  const warnings = [];
-  const previousWarn = console.warn;
-  console.warn = (message) => warnings.push(String(message));
-  try {
-    const configPath = autoresearchShortcutsConfigPath(agentDir);
-    await mkdir(join(agentDir, "extensions"), { recursive: true });
-    await writeFile(configPath, "{ not json");
+  await withTempAgentDir(async (agentDir) => {
+    const warnings = [];
+    const previousWarn = console.warn;
+    console.warn = (message) => warnings.push(String(message));
+    try {
+      const configPath = autoresearchShortcutsConfigPath(agentDir);
+      await mkdir(join(agentDir, "extensions"), { recursive: true });
+      await writeFile(configPath, "{ not json");
 
-    const shortcuts = resolveAutoresearchShortcuts(configPath);
+      const shortcuts = resolveAutoresearchShortcuts(configPath);
 
-    assert.deepEqual(shortcuts, {
-      fullscreenDashboard: DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT,
-    });
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /pi-autoresearch.*config/i);
-    assert.match(warnings[0], new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  } finally {
-    console.warn = previousWarn;
-    await rm(agentDir, { recursive: true, force: true });
-  }
+      assert.deepEqual(shortcuts, {
+        fullscreenDashboard: DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT,
+      });
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /pi-autoresearch.*config/i);
+      assert.match(warnings[0], new RegExp(configPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    } finally {
+      console.warn = previousWarn;
+    }
+  });
 });
 
 test("invalid known shortcut fields warn and fall back to defaults for the whole file", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  const warnings = [];
-  const previousWarn = console.warn;
-  console.warn = (message) => warnings.push(String(message));
-  try {
-    const configPath = autoresearchShortcutsConfigPath(agentDir);
-    await mkdir(join(agentDir, "extensions"), { recursive: true });
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        shortcuts: {
-          fullscreenDashboard: 123,
-        },
-      })
-    );
+  await withTempAgentDir(async (agentDir) => {
+    const warnings = [];
+    const previousWarn = console.warn;
+    console.warn = (message) => warnings.push(String(message));
+    try {
+      const configPath = autoresearchShortcutsConfigPath(agentDir);
+      await mkdir(join(agentDir, "extensions"), { recursive: true });
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          shortcuts: {
+            fullscreenDashboard: 123,
+          },
+        })
+      );
 
-    const shortcuts = resolveAutoresearchShortcuts(configPath);
+      const shortcuts = resolveAutoresearchShortcuts(configPath);
 
-    assert.deepEqual(shortcuts, {
-      fullscreenDashboard: DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT,
-    });
-    assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /invalid pi-autoresearch config/i);
-  } finally {
-    console.warn = previousWarn;
-    await rm(agentDir, { recursive: true, force: true });
-  }
+      assert.deepEqual(shortcuts, {
+        fullscreenDashboard: DEFAULT_FULLSCREEN_DASHBOARD_SHORTCUT,
+      });
+      assert.equal(warnings.length, 1);
+      assert.match(warnings[0], /invalid pi-autoresearch config/i);
+    } finally {
+      console.warn = previousWarn;
+    }
+  });
 });
 
 function withAgentDir(agentDir, fn) {
@@ -167,8 +211,7 @@ function collectRegisteredShortcuts() {
 }
 
 test("extension registers shortcuts from the active profile config", async () => {
-  const agentDir = await mkdtemp(join(tmpdir(), "pi-autoresearch-test-"));
-  try {
+  await withTempAgentDir(async (agentDir) => {
     const configPath = autoresearchShortcutsConfigPath(agentDir);
     await mkdir(join(agentDir, "extensions"), { recursive: true });
     await writeFile(
@@ -186,7 +229,5 @@ test("extension registers shortcuts from the active profile config", async () =>
         ["ctrl+shift+u"]
       );
     });
-  } finally {
-    await rm(agentDir, { recursive: true, force: true });
-  }
+  });
 });
