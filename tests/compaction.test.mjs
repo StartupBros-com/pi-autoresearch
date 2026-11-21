@@ -103,13 +103,15 @@ test("session block reflects current segment after re-init", () => {
       '{"type":"config","name":"New goal","metricName":"bytes","metricUnit":"kb","bestDirection":"higher"}',
       '{"run":2,"commit":"b","metric":10,"status":"keep","description":"new baseline","timestamp":2,"metrics":{}}',
       '{"run":3,"commit":"c","metric":15,"status":"keep","description":"better","timestamp":3,"metrics":{}}',
+      '{"run":4,"commit":"d","metric":15,"status":"keep","description":"tied","timestamp":4,"metrics":{}}',
+      '{"run":5,"commit":"e","metric":20,"status":"discard","description":"discarded","timestamp":5,"metrics":{}}',
     ]);
 
     const summary = buildAutoresearchCompactionSummary(autoresearchSummaryPathsFor(workDir));
 
     assert.match(summary, /Goal: New goal/);
     assert.match(summary, /Metric: bytes — higher is better/);
-    assert.match(summary, /Runs so far: 2 \(2 keep\)/);
+    assert.match(summary, /Runs so far: 4 \(3 keep · 1 discard\)/);
     assert.match(summary, /Baseline \(#2\): 10kb/);
     assert.match(summary, /Best\s+\(#3\): 15kb \(\+50\.0%\)/);
   });

@@ -16,6 +16,7 @@ import {
   type ReconstructedRun,
 } from "./jsonl.ts";
 import { sessionFilePath } from "./paths.ts";
+import { isBetter } from "./metric-order.ts";
 
 const RECENT_RUN_LIMIT = 50;
 
@@ -132,10 +133,6 @@ function bestRun(runs: ReconstructedRun[], direction: "lower" | "higher"): Recon
   const kept = runs.filter((run) => run.status === "keep" && Number.isFinite(run.metric));
   if (kept.length === 0) return null;
   return kept.reduce((best, run) => (isBetter(run.metric, best.metric, direction) ? run : best));
-}
-
-function isBetter(value: number, current: number, direction: "lower" | "higher"): boolean {
-  return direction === "lower" ? value < current : value > current;
 }
 
 function readablePath(workDir: string, filePath: string): string {
