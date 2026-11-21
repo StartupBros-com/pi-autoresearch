@@ -2277,10 +2277,13 @@ export default function autoresearchExtension(pi: ExtensionAPI) {
       if (state.bestMetric !== null) {
         text += `\nBaseline ${state.metricName}: ${formatNum(state.bestMetric, state.metricUnit)}`;
         if (segmentCount > 1 && params.status === "keep" && params.metric > 0) {
-          const delta = params.metric - state.bestMetric;
-          const pct = ((delta / state.bestMetric) * 100).toFixed(1);
-          const sign = delta > 0 ? "+" : "";
-          text += ` | this: ${formatNum(params.metric, state.metricUnit)} (${sign}${pct}%)`;
+          text += ` | this: ${formatNum(params.metric, state.metricUnit)}`;
+          if (state.bestMetric !== 0) {
+            const delta = params.metric - state.bestMetric;
+            const pct = ((delta / state.bestMetric) * 100).toFixed(1);
+            const sign = delta > 0 ? "+" : "";
+            text += ` (${sign}${pct}%)`;
+          }
         }
       }
 
