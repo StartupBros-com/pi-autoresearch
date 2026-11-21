@@ -52,6 +52,7 @@ import {
 } from "./compaction.ts";
 import { resolveAutoresearchShortcuts } from "./shortcuts.ts";
 import { sessionFilePath, sessionFileCandidates, ensureParentDir, AUTO_DIR } from "./paths.ts";
+import { isBetter } from "./metric-order.ts";
 
 // ---------------------------------------------------------------------------
 // Experiment output limits (sent to LLM — keep small to save context)
@@ -357,14 +358,6 @@ function isAutoresearchShCommand(command: string): boolean {
   // is still accepted for in-flight sessions. An optional path prefix allows
   //   ./.auto/measure.sh, /abs/path/.auto/measure.sh, bash [-flags] autoresearch.sh, etc.
   return /^(?:(?:bash|sh|source)\s+(?:-\w+\s+)*)?(?:\/|\.{1,2}\/|[\w.-]+\/)*(?:autoresearch\.sh|\.auto\/measure\.sh)(?:\s|$)/.test(cmd);
-}
-
-function isBetter(
-  current: number,
-  best: number,
-  direction: "lower" | "higher"
-): boolean {
-  return direction === "lower" ? current < best : current > best;
 }
 
 /** Compute the median of a numeric array (returns 0 for empty arrays) */
