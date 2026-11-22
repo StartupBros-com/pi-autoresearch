@@ -88,6 +88,30 @@ test("current sessions ignore stale legacy hooks", () => {
   assert.equal(hookScriptPath(dir, "after"), path.join(dir, AUTO_DIR, "hooks", "after.sh"));
 });
 
+test("an empty current hooks directory selects the current layout for both kinds", (t) => {
+  const dir = freshDir();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const { current: currentLog, legacy: legacyLog } = sessionFileCandidates(dir, "log");
+  const currentHook = path.join(dir, AUTO_DIR, "hooks", "after.sh");
+  const legacyHook = path.join(dir, "autoresearch.hooks", "after.sh");
+  fs.writeFileSync(legacyLog, "{}\n");
+  ensureParentDir(legacyHook);
+  fs.writeFileSync(legacyHook, "#!/usr/bin/env bash\n");
+
+  // A bare .auto directory is not itself a current session artifact.
+  ensureParentDir(currentLog);
+  assert.equal(sessionFilePath(dir, "log"), legacyLog);
+  assert.equal(hookScriptPath(dir, "after"), legacyHook);
+
+  // An empty .auto/hooks directory is an artifact, even without the requested files.
+  ensureParentDir(currentHook);
+  assert.equal(sessionFilePath(dir, "log"), currentLog);
+  assert.equal(hookScriptPath(dir, "after"), currentHook);
+  assert.equal(fs.existsSync(currentLog), false);
+  assert.equal(fs.existsSync(currentHook), false);
+});
+
 test("ensureParentDir creates missing parent directories", () => {
   const dir = freshDir();
   const target = path.join(dir, AUTO_DIR, "log.jsonl");

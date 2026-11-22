@@ -55,6 +55,11 @@ function currentLayoutExists(dir: string): boolean {
   return fs.existsSync(path.join(dir, AUTO_DIR, CURRENT_HOOKS_DIR));
 }
 
+function selectLayoutPath(dir: string, current: string, legacy: string): string {
+  if (currentLayoutExists(dir)) return current;
+  return fs.existsSync(legacy) ? legacy : current;
+}
+
 /** Return both physical paths for destructive or migration operations. */
 export function sessionFileCandidates(dir: string, kind: SessionFileKind): SessionFileCandidates {
   return {
@@ -69,17 +74,13 @@ export function sessionFileCandidates(dir: string, kind: SessionFileKind): Sessi
  * peers. Fall back to a legacy flat file only when no current layout exists.
  */
 export function sessionFilePath(dir: string, kind: SessionFileKind): string {
-  const candidates = sessionFileCandidates(dir, kind);
-  if (currentLayoutExists(dir)) return candidates.current;
-  return fs.existsSync(candidates.legacy) ? candidates.legacy : candidates.current;
+  const { current, legacy } = sessionFileCandidates(dir, kind);
+  return selectLayoutPath(dir, current, legacy);
 }
 
 /** Effective path for a hook script, with the same layout choice as session files. */
 export function hookScriptPath(workDir: string, stage: HookStage): string {
-  const current = currentHookPath(workDir, stage);
-  const legacy = legacyHookPath(workDir, stage);
-  if (currentLayoutExists(workDir)) return current;
-  return fs.existsSync(legacy) ? legacy : current;
+  return selectLayoutPath(workDir, currentHookPath(workDir, stage), legacyHookPath(workDir, stage));
 }
 
 /** Ensure the parent directory for a session file exists before writing. */
